@@ -8,6 +8,7 @@ import Combine
 
 struct CalendarTimelineView: View {
     let startHourOfDay: Int
+    let endHourOfDay: Int
     @Binding var hourSpacing: Double
     @Binding var hourHeight: Double
     @State private var timelineOffset: Double = 0
@@ -49,6 +50,7 @@ struct CalendarTimelineView_Previews: PreviewProvider {
                 ZStack {
                     CalendarTimelineView(
                         startHourOfDay: 6,
+                        endHourOfDay: 20,
                         hourSpacing: .constant(24),
                         hourHeight: .constant(30)
                     )

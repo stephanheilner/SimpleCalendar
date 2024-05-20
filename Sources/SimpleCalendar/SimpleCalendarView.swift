@@ -17,7 +17,7 @@ public enum SelectionAction {
     /// )
     /// ```
     case sheet
-    
+
     /// Shows a custom `View` as a sheet
     ///
     /// Example of implementation
@@ -80,6 +80,8 @@ public struct SimpleCalendarView: View {
     @State private var hourSpacing: Double
 
     private let startHourOfDay: Int
+    private let endHourOfDay: Int
+    private let is24Hour: Bool
     private let selectionAction: SelectionAction
     private let dateSelectionStyle: DateSelectionStyle
 
@@ -99,7 +101,9 @@ public struct SimpleCalendarView: View {
         dateSelectionStyle: DateSelectionStyle = .datePicker,
         hourHeight: Double = 25.0,
         hourSpacing: Double = 24.0,
-        startHourOfDay: Int = 6
+        startHourOfDay: Int = 6,
+        endHourOfDay: Int = 24,
+        is24Hour: Bool = false
     ) {
         _events = events
         _selectedDate = selectedDate
@@ -108,17 +112,19 @@ public struct SimpleCalendarView: View {
         _hourSpacing = State(initialValue: hourSpacing)
 
         self.startHourOfDay = startHourOfDay
+        self.endHourOfDay = endHourOfDay
+        self.is24Hour = is24Hour
         self.selectionAction = selectionAction
         self.dateSelectionStyle = dateSelectionStyle
     }
 
     private var hours: [String] {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = Locale.is24Hour ? "HH:mm" : "h a"
+        dateFormatter.dateFormat = (Locale.is24Hour && is24Hour) ? "HH:mm" : "h\u{00a0}a"
 
         var hours: [String] = []
 
-        for hour in startHourOfDay...24 {
+        for hour in startHourOfDay ... endHourOfDay {
             if let date = Date().atHour(hour) {
                 hours.append(dateFormatter.string(from: date))
             }
@@ -126,7 +132,13 @@ public struct SimpleCalendarView: View {
 
         return hours
     }
-    
+
+    private let monthAndDayDateFormatter: DateFormatter = {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEE MMM d"
+        return dateFormatter
+    }()
+
     private let dateFormatter: DateFormatter = {
         let dateFormatter = DateFormatter()
         dateFormatter.setLocalizedDateFormatFromTemplate("MMMdd")
@@ -140,6 +152,9 @@ public struct SimpleCalendarView: View {
 
         /// A range of dates provided by the app
         case selectedDates([Date])
+
+        /// Segmented Control with dates provided by app
+        case segmentedControl([Date])
     }
 
     public var body: some View {
@@ -155,6 +170,7 @@ public struct SimpleCalendarView: View {
                 if calendar.isDateInToday(selectedDate) {
                     CalendarTimelineView(
                         startHourOfDay: startHourOfDay,
+                        endHourOfDay: endHourOfDay,
                         hourSpacing: $hourSpacing,
                         hourHeight: $hourHeight
                     )
@@ -174,12 +190,20 @@ public struct SimpleCalendarView: View {
                                 .labelsHidden()
                         case .selectedDates(let dates):
                             Picker(selection: $selectedDate) {
-                                ForEach(dates, id:\.self) { date in
+                                ForEach(dates, id: \.self) { date in
                                     Text(date, style: .date)
                                 }
                             } label: {
                                 Text("")
                             }
+                        case .segmentedControl(let dates):
+                            Picker(selection: $selectedDate) {
+                                ForEach(dates, id: \.self) { date in
+                                    Text(monthAndDayDateFormatter.string(from: date))
+                                }
+                            } label: {
+                                Text("")
+                            }.pickerStyle(.segmented)
                         }
                     }
                 }
@@ -197,7 +221,7 @@ public struct SimpleCalendarView: View {
         let calendar = Calendar.current
         let selectedEvents = events.filter {
             calendar.isDate($0.startDate, inSameDayAs: selectedDate)
-            || calendar.isDate($0.startDate.addingTimeInterval($0.calendarActivity.duration), inSameDayAs: selectedDate)
+                || calendar.isDate($0.startDate.addingTimeInterval($0.calendarActivity.duration), inSameDayAs: selectedDate)
         }
 
         calculateCoordinates(forEvents: selectedEvents)
@@ -212,7 +236,7 @@ public struct SimpleCalendarView: View {
         let heightPerSecond = (actualHourHeight / 60) / 60
 
         // Go over each event and check if there is another event ongoing at the same time
-        events.forEach { event in
+        for event in events {
             let activity = event.calendarActivity
             var event = event
 
@@ -223,7 +247,7 @@ public struct SimpleCalendarView: View {
 
             let positionedEvents = pos.filter {
                 ($0.position.minY >= frame.origin.y && $0.position.minY < frame.maxY) ||
-                ($0.position.maxY > frame.origin.y && $0.position.maxY <= frame.maxY)
+                    ($0.position.maxY > frame.origin.y && $0.position.maxY <= frame.maxY)
             }
 
             event.column = positionedEvents.count
@@ -242,7 +266,7 @@ public struct SimpleCalendarView: View {
             pos.append(EventPositions(id: event.id, sharePositionWith: positionedEvents.map { $0.id }, position: frame))
         }
 
-        self.visibleEvents = eventList
+        visibleEvents = eventList
     }
 
     private func calculateOffset(event: CalendarEvent) -> Double {
@@ -266,7 +290,7 @@ struct ScheduleView_Previews: PreviewProvider {
         let dateEvent6 = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date())!
         let dateEvent7 = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date(timeIntervalSinceNow: 24 * (60 * 60)))!
         // swiftlint:enable force_unwrapping
-        
+
         let events = [
             CalendarEvent.forPreview(
                 id: "1",
@@ -281,7 +305,7 @@ struct ScheduleView_Previews: PreviewProvider {
                 startDate: dateEvent2,
                 activity: CalendarActivity.forPreview(
                     id: UUID().uuidString,
-                    type: ActivityType.forPreview(color: .blue), 
+                    type: ActivityType.forPreview(color: .blue),
                     duration: 6 * (60 * 60)
                 )
             ),
@@ -298,8 +322,9 @@ struct ScheduleView_Previews: PreviewProvider {
                 startDate: dateEvent4,
                 activity: CalendarActivity.forPreview(
                     id: UUID().uuidString,
-                    type: ActivityType.forPreview(color: .red), 
-                    duration: 45 * 60)
+                    type: ActivityType.forPreview(color: .red),
+                    duration: 45 * 60
+                )
             ),
             CalendarEvent.forPreview(
                 id: "5",

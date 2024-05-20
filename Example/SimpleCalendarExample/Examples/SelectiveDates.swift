@@ -28,6 +28,7 @@ struct SelectiveDates: View {
                 hourHeight: 50,
                 hourSpacing: 48,
                 startHourOfDay: 0
+                endHourOfDay: 24
             )
             .navigationTitle("+10 days from now")
         }
